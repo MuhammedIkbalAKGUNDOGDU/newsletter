@@ -8,14 +8,11 @@ import (
 func RunMigrations(db *sql.DB) {
 	log.Println("Running database migrations...")
 	
-	// Users table
-	createUsersTable(db)
+	// Subscriptions table
+	createSubscriptionsTable(db)
 	
 	// Newsletters table
 	createNewslettersTable(db)
-	
-	// Subscriptions table
-	createSubscriptionsTable(db)
 	
 	// Indexes
 	createIndexes(db)
@@ -45,11 +42,13 @@ func createNewslettersTable(db *sql.DB) {
 		CREATE TABLE IF NOT EXISTS newsletters (
 			id SERIAL PRIMARY KEY,
 			title VARCHAR(255) NOT NULL,
+			subject VARCHAR(255) NOT NULL,
 			content TEXT NOT NULL,
-			author_id INTEGER REFERENCES users(id),
 			status VARCHAR(50) DEFAULT 'draft',
+			category VARCHAR(100),
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			sent_at TIMESTAMP NULL
 		)`
 	
 	_, err := db.Exec(query)
@@ -63,10 +62,12 @@ func createSubscriptionsTable(db *sql.DB) {
 	query := `
 		CREATE TABLE IF NOT EXISTS subscriptions (
 			id SERIAL PRIMARY KEY,
-			user_id INTEGER REFERENCES users(id),
-			newsletter_id INTEGER REFERENCES newsletters(id),
+			email VARCHAR(255) UNIQUE NOT NULL,
+			status VARCHAR(50) DEFAULT 'active',
+			categories TEXT[],
 			subscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE(user_id, newsletter_id)
+			paused_at TIMESTAMP NULL,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		)`
 	
 	_, err := db.Exec(query)
@@ -78,11 +79,11 @@ func createSubscriptionsTable(db *sql.DB) {
 
 func createIndexes(db *sql.DB) {
 	indexes := []string{
-		"CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)",
-		"CREATE INDEX IF NOT EXISTS idx_newsletters_author ON newsletters(author_id)",
+		"CREATE INDEX IF NOT EXISTS idx_subscriptions_email ON subscriptions(email)",
+		"CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status)",
 		"CREATE INDEX IF NOT EXISTS idx_newsletters_status ON newsletters(status)",
-		"CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id)",
-		"CREATE INDEX IF NOT EXISTS idx_subscriptions_newsletter ON subscriptions(newsletter_id)",
+		"CREATE INDEX IF NOT EXISTS idx_newsletters_category ON newsletters(category)",
+		"CREATE INDEX IF NOT EXISTS idx_newsletters_created_at ON newsletters(created_at)",
 	}
 	
 	for _, index := range indexes {

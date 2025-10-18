@@ -10,6 +10,7 @@ import (
 	"newsletter/controllers"
 	"newsletter/migrations"
 	"newsletter/models"
+	"newsletter/services"
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
@@ -70,42 +71,56 @@ func (a *App) initializeRoutes() {
 	a.Router = mux.NewRouter()
 
 	// Models oluştur
-	userModel := models.NewUserModel(a.DB)
-	newsletterModel := models.NewNewsletterModel(a.DB)
 	subscriptionModel := models.NewSubscriptionModel(a.DB)
+	newsletterModel := models.NewNewsletterModel(a.DB)
+
+	// Services oluştur
+	emailService := services.NewEmailService()
 
 	// Controllers oluştur
-	userController := controllers.NewUserController(userModel)
-	newsletterController := controllers.NewNewsletterController(newsletterModel)
 	subscriptionController := controllers.NewSubscriptionController(subscriptionModel)
+	emailController := controllers.NewEmailController(emailService)
+	newsletterController := controllers.NewNewsletterController(newsletterModel, subscriptionModel, emailService)
+	templateController := controllers.NewTemplateController()
 
 	// API routes
 	a.Router.HandleFunc("/", a.homeHandler).Methods("GET")
 	a.Router.HandleFunc("/health", a.healthHandler).Methods("GET")
 	a.Router.HandleFunc("/api/status", a.statusHandler).Methods("GET")
 
-	// User routes
-	a.Router.HandleFunc("/api/users", userController.CreateUser).Methods("POST")
-	a.Router.HandleFunc("/api/users", userController.GetAllUsers).Methods("GET")
-	a.Router.HandleFunc("/api/users/{id}", userController.GetUser).Methods("GET")
-	a.Router.HandleFunc("/api/users/{id}", userController.UpdateUser).Methods("PUT")
-	a.Router.HandleFunc("/api/users/{id}", userController.DeleteUser).Methods("DELETE")
+	// Subscription routes
+	a.Router.HandleFunc("/api/subscribe", subscriptionController.Subscribe).Methods("POST")
+	a.Router.HandleFunc("/api/unsubscribe", subscriptionController.Unsubscribe).Methods("POST")
+	a.Router.HandleFunc("/api/pause", subscriptionController.Pause).Methods("POST")
+	a.Router.HandleFunc("/api/reactivate", subscriptionController.Reactivate).Methods("POST")
+	a.Router.HandleFunc("/api/subscriptions/{email}", subscriptionController.GetSubscription).Methods("GET")
+	a.Router.HandleFunc("/api/subscriptions", subscriptionController.GetAllSubscriptions).Methods("GET")
+	a.Router.HandleFunc("/api/subscriptions/status/{status}", subscriptionController.GetSubscriptionsByStatus).Methods("GET")
+	a.Router.HandleFunc("/api/subscriptions/categories", subscriptionController.UpdateCategories).Methods("PUT")
+
+	// Email routes
+	a.Router.HandleFunc("/api/email/send", emailController.SendEmail).Methods("POST")
+	a.Router.HandleFunc("/api/email/send-bulk", emailController.SendBulkEmails).Methods("POST")
+	a.Router.HandleFunc("/api/email/test-connection", emailController.TestConnection).Methods("GET")
+	a.Router.HandleFunc("/api/email/test/{email}", emailController.SendTestEmail).Methods("POST")
+	a.Router.HandleFunc("/api/email/config", emailController.GetEmailConfig).Methods("GET")
 
 	// Newsletter routes
 	a.Router.HandleFunc("/api/newsletters", newsletterController.CreateNewsletter).Methods("POST")
 	a.Router.HandleFunc("/api/newsletters", newsletterController.GetAllNewsletters).Methods("GET")
-	a.Router.HandleFunc("/api/newsletters/published", newsletterController.GetPublishedNewsletters).Methods("GET")
 	a.Router.HandleFunc("/api/newsletters/{id}", newsletterController.GetNewsletter).Methods("GET")
 	a.Router.HandleFunc("/api/newsletters/{id}", newsletterController.UpdateNewsletter).Methods("PUT")
 	a.Router.HandleFunc("/api/newsletters/{id}", newsletterController.DeleteNewsletter).Methods("DELETE")
+	a.Router.HandleFunc("/api/newsletters/status/{status}", newsletterController.GetNewslettersByStatus).Methods("GET")
+	a.Router.HandleFunc("/api/newsletters/send-to-emails", newsletterController.SendNewsletterToEmails).Methods("POST")
+	a.Router.HandleFunc("/api/newsletters/send-to-subscribers", newsletterController.SendNewsletterToSubscribers).Methods("POST")
+	a.Router.HandleFunc("/api/newsletters/stats", newsletterController.GetNewsletterStats).Methods("GET")
 
-	// Subscription routes
-	a.Router.HandleFunc("/api/subscriptions", subscriptionController.CreateSubscription).Methods("POST")
-	a.Router.HandleFunc("/api/subscriptions/{id}", subscriptionController.GetSubscription).Methods("GET")
-	a.Router.HandleFunc("/api/subscriptions/{id}", subscriptionController.DeleteSubscription).Methods("DELETE")
-	a.Router.HandleFunc("/api/users/{user_id}/subscriptions", subscriptionController.GetUserSubscriptions).Methods("GET")
-	a.Router.HandleFunc("/api/newsletters/{newsletter_id}/subscribers", subscriptionController.GetNewsletterSubscribers).Methods("GET")
-	a.Router.HandleFunc("/api/users/{user_id}/newsletters/{newsletter_id}/unsubscribe", subscriptionController.Unsubscribe).Methods("DELETE")
+	// Template routes
+	a.Router.HandleFunc("/api/templates", templateController.GetAllTemplates).Methods("GET")
+	a.Router.HandleFunc("/api/templates/{id}", templateController.GetTemplate).Methods("GET")
+	a.Router.HandleFunc("/api/templates/category/{category}", templateController.GetTemplatesByCategory).Methods("GET")
+	a.Router.HandleFunc("/api/templates/render", templateController.RenderTemplate).Methods("POST")
 }
 
 func (a *App) homeHandler(w http.ResponseWriter, r *http.Request) {
